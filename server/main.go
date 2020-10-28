@@ -68,14 +68,20 @@ type checkInResp struct {
 func handleCheckIn(c echo.Context) (err error) {
 	id := c.Param("clientID")
 
+	res := checkIn(id, clientCommandMap, &commandLock)
+
+	return c.JSON(http.StatusOK, res)
+}
+
+func checkIn(id string, cMap map[string]chan interface{}, lock *sync.Mutex) checkInResp {
 	// this a simplistic approach, but sufficient for the example.
-	commandLock.Lock()
-	ch, ok := clientCommandMap[id]
+	lock.Lock()
+	ch, ok := cMap[id]
 	if !ok {
 		ch = make(chan interface{})
-		clientCommandMap[id] = ch
+		cMap[id] = ch
 	}
-	commandLock.Unlock()
+	lock.Unlock()
 
 	res := checkInResp{
 		AskForTime: false,
@@ -89,7 +95,7 @@ func handleCheckIn(c echo.Context) (err error) {
 		// continue execution
 	}
 
-	return c.JSON(http.StatusOK, res)
+	return res
 }
 
 type setRes struct {
@@ -98,18 +104,25 @@ type setRes struct {
 }
 
 func handleSetTime(c echo.Context) (err error) {
-	res := setRes{
-		Error: false,
-	}
 
 	id := c.Param("clientID")
 	tStr := c.Param("timestamp")
+
+	res := setTime(id, tStr, timeFmtStr, clientTimeMap, &timeLock)
+
+	return c.JSON(http.StatusOK, res)
+}
+
+func setTime(id, tStr, timeFmt string, timeMap map[string]chan time.Time, timeLock *sync.Mutex) setRes {
+	res := setRes{
+		Error: false,
+	}
 
 	ts, err := time.Parse(timeFmtStr, tStr)
 	if err != nil {
 		res.Error = true
 		res.Msg = err.Error()
-		return c.JSON(http.StatusBadRequest, res)
+		return res
 	}
 
 	timeLock.Lock()
@@ -117,7 +130,7 @@ func handleSetTime(c echo.Context) (err error) {
 	// exist at this point, and it is a demo.
 	// In production code, I'd be defensive enough to check
 	// the ok anyway.
-	ch := clientTimeMap[id]
+	ch := timeMap[id]
 	timeLock.Unlock()
 
 	// Asynchronously write to the channel to free the client back up
@@ -126,7 +139,7 @@ func handleSetTime(c echo.Context) (err error) {
 		ch <- ts
 	}()
 
-	return c.JSON(http.StatusOK, res)
+	return res
 }
 
 type timeRes struct {
@@ -135,29 +148,37 @@ type timeRes struct {
 }
 
 func handleGetTime(c echo.Context) (err error) {
-	var res timeRes
-	res.Error = false
 
 	id := c.Param("clientID")
+	res := getTime(id, clientCommandMap, clientTimeMap, &commandLock, &timeLock)
+	if res.Error {
+		return c.JSON(http.StatusNotFound, res)
+	}
 
+	return c.JSON(http.StatusOK, res)
+}
+
+func getTime(id string, cMap map[string]chan interface{}, tMap map[string]chan time.Time, cLock, tLock *sync.Mutex) timeRes {
+	var res timeRes
+	res.Error = false
 	// First, check the time map, because this function has the
 	// responsibility to initialize the time channel.
-	timeLock.Lock()
-	tCh, ok := clientTimeMap[id]
+	tLock.Lock()
+	tCh, ok := tMap[id]
 	if !ok {
 		tCh = make(chan time.Time)
-		clientTimeMap[id] = tCh
+		tMap[id] = tCh
 	}
-	timeLock.Unlock()
+	tLock.Unlock()
 
-	commandLock.Lock()
-	ch, ok := clientCommandMap[id]
-	commandLock.Unlock()
+	cLock.Lock()
+	ch, ok := cMap[id]
+	cLock.Unlock()
 
 	if !ok {
 		res.Error = true
 		res.Msg = fmt.Sprintf("Unknown Client ID: %s", id)
-		return c.JSON(http.StatusNotFound, res)
+		return res
 	}
 
 	// avoid deadlock, but leak a routine.
@@ -171,11 +192,11 @@ func handleGetTime(c echo.Context) (err error) {
 	select {
 	case ts := <-tCh:
 		res.TS = ts.Format(timeFmtStr)
-		return c.JSON(http.StatusOK, res)
 
 	case <-time.After(time.Second * 5):
 		res.Error = true
 		res.Msg = fmt.Sprintf("Client at ID %s did not reply within 5 seconds", id)
-		return c.JSON(http.StatusNotFound, res)
 	}
+
+	return res
 }

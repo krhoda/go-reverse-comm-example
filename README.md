@@ -43,3 +43,16 @@ Expanding the `checkInResp` structure to contain additional fields would allow m
 To issue additional commands, a `command` struct could be created and used instead of an `interface{}`, or additional channels could be used like semaphores, each indicating a different action that the client should take.
 
 If significantly expanding the command mechanisms, consider containing the maps in their own go-routine, and rather than contesting locks, pass keys to the map as a message over a channel, and receive the value (a channel to a given client / request) over a channel.
+
+#### Testing
+Testing exists for the functions underlying the server routes. To run the tests, from the top-level of the repo:
+```
+$ cd server
+$ go test
+```
+It will take a little over a minute to run to test the long-polling and time out functionality.
+
+#### Next Steps
+The client's functionality is tied very heavily to the existence of a server. In order to properly test the client, a mock would be required, which I don't know off hand how to do, though some googling would certainly get me there.
+
+There isn't a Kubernetes deployment script, but given it's just an HTTP server grabbing a single port, it would also likely be trivially small.
