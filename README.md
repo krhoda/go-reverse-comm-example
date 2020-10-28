@@ -53,6 +53,8 @@ $ go test
 It will take a little over a minute to run to test the long-polling and time out functionality.
 
 #### Next Steps
+There are several structs used by both `main.go` files which should be broken into a `lib` or `util` package and imported by both, rather than copied+pasted into each.
+
 The client's functionality is tied very heavily to the existence of a server. In order to properly test the client, a mock would be required, which I don't know off hand how to do, though some googling would certainly get me there.
 
 There isn't a Kubernetes deployment script, but given it's just an HTTP server grabbing a single port, it would also likely be trivially small.

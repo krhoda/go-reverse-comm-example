@@ -64,7 +64,6 @@ func TestSetTime(t *testing.T) {
 }
 
 func TestGetTime(t *testing.T) {
-
 	id := "test_id"
 	timeFmt := "Mon, 02 Jan 2006 15:04:05 MST"
 

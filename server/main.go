@@ -104,7 +104,6 @@ type setRes struct {
 }
 
 func handleSetTime(c echo.Context) (err error) {
-
 	id := c.Param("clientID")
 	tStr := c.Param("timestamp")
 
@@ -148,7 +147,6 @@ type timeRes struct {
 }
 
 func handleGetTime(c echo.Context) (err error) {
-
 	id := c.Param("clientID")
 	res := getTime(id, clientCommandMap, clientTimeMap, &commandLock, &timeLock)
 	if res.Error {
